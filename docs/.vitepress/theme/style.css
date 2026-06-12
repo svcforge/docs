@@ -1,0 +1,105 @@
+:root {
+  --vp-c-brand-1: #0f766e;
+  --vp-c-brand-2: #0d9488;
+  --vp-c-brand-3: #14b8a6;
+  --vp-c-brand-soft: rgba(20, 184, 166, 0.14);
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #0f766e 10%, #2563eb 80%);
+  --vp-home-hero-image-background-image: linear-gradient(135deg, rgba(15, 118, 110, 0.18), rgba(37, 99, 235, 0.16));
+  --vp-home-hero-image-filter: blur(48px);
+  --vp-custom-block-tip-border: rgba(15, 118, 110, 0.22);
+  --vp-custom-block-tip-bg: rgba(20, 184, 166, 0.09);
+}
+
+.VPHomeHero .image-container {
+  transform: translate(0, 0);
+}
+
+.hero-architecture {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 560px);
+  padding: 18px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--vp-c-bg) 86%, var(--vp-c-brand-soft));
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.12);
+}
+
+.hero-architecture__row {
+  display: grid;
+  grid-template-columns: 1fr 32px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.hero-architecture__node {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-1);
+  font-weight: 650;
+  text-align: center;
+}
+
+.hero-architecture__arrow {
+  color: var(--vp-c-brand-1);
+  font-weight: 700;
+  text-align: center;
+}
+
+.hero-architecture__wide {
+  grid-column: 1 / -1;
+}
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 28px 0;
+}
+
+.doc-tile {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--vp-c-bg-soft);
+}
+
+.doc-tile strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--vp-c-text-1);
+}
+
+.doc-tile p {
+  margin: 0;
+  color: var(--vp-c-text-2);
+  line-height: 1.65;
+}
+
+.adapter-table td:first-child {
+  white-space: nowrap;
+  font-weight: 650;
+}
+
+@media (max-width: 760px) {
+  .doc-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-architecture {
+    padding: 14px;
+  }
+
+  .hero-architecture__row {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-architecture__arrow {
+    transform: rotate(90deg);
+  }
+}
