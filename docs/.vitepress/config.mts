@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'Service Forge',
   description: 'Service Forge 微服务框架与脚手架工具文档',
   lang: 'zh-CN',
+  base: '/docs/',
   cleanUrls: true,
   lastUpdated: true,
   themeConfig: {
