@@ -5,6 +5,9 @@ hero:
   name: Service Forge
   text: Go 微服务框架与脚手架工具
   tagline: 用 Core、Ports、Adapters 与 Runtime Modules 组织微服务项目，把业务代码和基础设施选择解耦。
+  image:
+    src: /logo-full.png
+    alt: Service Forge
   actions:
     - theme: brand
       text: 快速开始

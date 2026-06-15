@@ -5,10 +5,14 @@ export default defineConfig({
   description: 'Service Forge 微服务框架与脚手架工具文档',
   lang: 'zh-CN',
   base: '/',
+  head: [
+    ['link', { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }],
+    ['link', { rel: 'icon', type: 'image/png', href: '/logo.png' }]
+  ],
   cleanUrls: true,
   lastUpdated: true,
   themeConfig: {
-    logo: { text: 'SF' },
+    logo: '/logo.png',
     siteTitle: 'Service Forge',
     nav: [
       { text: '指南', link: '/guide/getting-started' },
