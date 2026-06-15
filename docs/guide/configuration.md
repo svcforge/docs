@@ -80,6 +80,7 @@ grpc:
 | `load_balance` | `pool_size > 1` 时连接选择策略，可选，见[路由弹性治理](#路由弹性治理)。 |
 | `retry` | 失败重试策略，可选，默认关闭。 |
 | `circuit_breaker` | 熔断策略，可选，默认关闭。 |
+| `stream` | 流式代理类型：`bidi` 为 WebSocket↔gRPC 双向流，`sse` 为服务端流式（Server-Sent Events）。见[WebSocket 流式代理](#websocket-流式代理)与[服务端流式（SSE）](#服务端流式-sse)。 |
 
 每条 `rpc` 需要注册静态 invoker：
 
@@ -185,6 +186,61 @@ gateway:
 ```
 
 `round_robin` 按顺序轮询连接；`least_conn` 选择在途请求数最少的连接，在请求延迟不均时更优；`random` 均匀随机。未知或空值回退为 `round_robin`。
+
+## WebSocket 流式代理
+
+将路由的 `stream` 设为 `bidi`，即可把一条 WebSocket 连接桥接到 gRPC 双向流。除了配置，还需要注册一个流式 invoker，提供每帧的消息类型：
+
+```yaml
+gateway:
+  routes:
+    - name: chat
+      path: /ws/chat
+      target: 127.0.0.1:9000
+      rpc: /example.v1.Chat/Stream
+      stream: bidi
+```
+
+```go
+gateway.MustRegisterBidiStreamProxy("/example.v1.Chat/Stream",
+    func() proto.Message { return &chatv1.ServerMessage{} }, // server → client 每帧类型
+    func() proto.Message { return &chatv1.ClientMessage{} }, // client → server 每帧类型
+)
+```
+
+该路由以 HTTP upgrade 方式暴露为 WebSocket 端点，非 upgrade 请求返回 `426 Upgrade Required`。每个 WebSocket 文本帧按 JSON 解码为 client 消息并发往 gRPC 流；每条 gRPC 消息编码为 JSON 后作为文本帧写回。两个方向由各自的 goroutine 独立泵送，任一侧关闭都会解除另一侧的阻塞。
+
+需要注意：
+
+- 重试和单次调用超时对流不生效；配置了熔断时也只在**建流阶段**参与，不作用于流中途的每一帧。
+- 每条流在建立时从连接池选定一条连接，并在整条流生命周期内固定使用。
+- 路由级插件（鉴权等）在 upgrade 前的 HTTP 握手阶段执行。
+- 关闭 WebSocket 会半关闭 gRPC 流；服务端流结束（`io.EOF`）会关闭 WebSocket。
+
+## 服务端流式（SSE）
+
+对于单向的服务端流式，将 `stream` 设为 `sse`。该路由接收**一个**请求（与 unary 路由一样从 body/query/path 绑定），然后把每条 gRPC 响应消息以 Server-Sent Event 的形式推送给客户端：
+
+```yaml
+gateway:
+  routes:
+    - name: feed
+      path: /sse/feed
+      target: 127.0.0.1:9000
+      rpc: /example.v1.Feed/Stream
+      stream: sse
+```
+
+```go
+gateway.MustRegisterServerStreamProxy("/example.v1.Feed/Stream",
+    func() proto.Message { return &feedv1.FeedRequest{} }, // 单个请求
+    func() proto.Message { return &feedv1.FeedEvent{} },   // 每条推送事件
+)
+```
+
+响应使用 `Content-Type: text/event-stream`，每条 gRPC 消息写成一个 `data: <json>` 事件。流式路由默认使用 HTTP `GET`（这样浏览器 `EventSource` 可直接使用），除非显式设置 `method`。gRPC 流结束（`io.EOF`）会关闭响应；客户端断开会在下一帧 flush 时被检测到。
+
+约束与 WebSocket 一致：重试和单次超时不生效，配置了熔断时也只在建流阶段参与，路由级插件在流开始前执行。
 
 ## Gateway 插件配置
 
