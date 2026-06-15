@@ -77,6 +77,9 @@ grpc:
 | `rpc` | 完整 gRPC 方法名，例如 `/example.v1.ExampleService/Ping`。 |
 | `pool_size` | 直连 `target` 时创建的 gRPC ClientConn 数量，默认 `1`。 |
 | `timeout` | 单次代理调用超时，可选，例如 `3s`。 |
+| `load_balance` | `pool_size > 1` 时连接选择策略，可选，见[路由弹性治理](#路由弹性治理)。 |
+| `retry` | 失败重试策略，可选，默认关闭。 |
+| `circuit_breaker` | 熔断策略，可选，默认关闭。 |
 
 每条 `rpc` 需要注册静态 invoker：
 
@@ -118,6 +121,70 @@ gateway.MustRegisterProxyInvoker("/example.v1.ExampleService/Ping", gateway.NewU
 1. JSON body。
 2. query 参数，不覆盖 body 中已有字段。
 3. path 参数，不覆盖 body 或 query 中已有字段。
+
+## 路由弹性治理
+
+每条路由都可以单独开启重试、熔断和负载均衡。三者默认全部关闭，不配置时不产生任何额外开销。失败按框架错误码分类，因此 `INVALID_ARGUMENT` 这类客户端错误既不会被重试，也不会计入熔断统计。
+
+### 重试
+
+失败后在重新挑选的连接上重试，自动绕开坏端点：
+
+```yaml
+gateway:
+  routes:
+    - name: example-ping
+      path: /api/v1/ping
+      target: 127.0.0.1:9000
+      rpc: /example.v1.ExampleService/Ping
+      retry:
+        max_attempts: 3      # 含首次的总尝试次数，<= 1 表示关闭
+        per_try_timeout: 1s  # 单次尝试超时，省略时回退到路由 timeout
+        backoff: 50ms        # 每次重试前的固定间隔，0 表示立即重试
+        retry_on:            # 可安全重试的框架错误码
+          - UNAVAILABLE
+          - DEADLINE_EXCEEDED
+```
+
+`retry_on` 省略时默认为 `UNAVAILABLE` 和 `DEADLINE_EXCEEDED`。只对幂等 RPC 开启重试：一个瞬时的 `UNAVAILABLE` 仍有可能已经在后端生效。
+
+### 熔断
+
+当滚动窗口内的失败率超过阈值时跳闸，之后的请求直接以 `UNAVAILABLE` 短路返回，直到一次探测成功为止。熔断包在重试之外，因此「重试耗尽后仍失败」只计为一次熔断失败：
+
+```yaml
+gateway:
+  routes:
+    - name: example-ping
+      path: /api/v1/ping
+      target: 127.0.0.1:9000
+      rpc: /example.v1.ExampleService/Ping
+      circuit_breaker:
+        min_requests: 20        # 窗口内达到此调用数后才可能跳闸
+        failure_ratio: 0.5      # 触发跳闸的失败比例，区间 (0,1]
+        window: 10s             # closed 状态下统计调用的滚动窗口
+        open_timeout: 5s        # open 持续多久后放行一次 half-open 探测
+        half_open_max_calls: 1  # half-open 状态允许的并发探测数
+```
+
+只有服务端/传输类失败（`UNAVAILABLE`、`DEADLINE_EXCEEDED`、`INTERNAL`）会计入跳闸，客户端错误永远不会打开熔断器。
+
+### 负载均衡
+
+当 `pool_size` 大于 `1` 时，`load_balance` 决定请求如何分散到连接池：
+
+```yaml
+gateway:
+  routes:
+    - name: example-ping
+      path: /api/v1/ping
+      target: 127.0.0.1:9000
+      rpc: /example.v1.ExampleService/Ping
+      pool_size: 4
+      load_balance: least_conn  # round_robin（默认）| least_conn | random
+```
+
+`round_robin` 按顺序轮询连接；`least_conn` 选择在途请求数最少的连接，在请求延迟不均时更优；`random` 均匀随机。未知或空值回退为 `round_robin`。
 
 ## Gateway 插件配置
 
