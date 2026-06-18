@@ -208,7 +208,16 @@ gateway.MustRegisterBidiStreamProxy("/example.v1.Chat/Stream",
 )
 ```
 
-该路由以 HTTP upgrade 方式暴露为 WebSocket 端点，非 upgrade 请求返回 `426 Upgrade Required`。每个 WebSocket 文本帧按 JSON 解码为 client 消息并发往 gRPC 流；每条 gRPC 消息编码为 JSON 后作为文本帧写回。两个方向由各自的 goroutine 独立泵送，任一侧关闭都会解除另一侧的阻塞。
+该路由以 HTTP upgrade 方式暴露为 WebSocket 端点，非 upgrade 请求返回 `426 Upgrade Required`。两个方向由各自的 goroutine 独立泵送，任一侧关闭都会解除另一侧的阻塞。
+
+**编码协商**：编码方式由客户端的**第一帧**决定，并在整条连接生命周期内固定：
+
+| 客户端首帧类型 | client → server | server → client |
+| --- | --- | --- |
+| 文本帧（text） | protojson（JSON）解码 | protojson 编码，写回文本帧 |
+| 二进制帧（binary） | proto wire format 解码 | proto wire format 编码，写回二进制帧 |
+
+同一个路由可同时接受文本和二进制客户端，每条连接独立协商，互不影响。客户端选择二进制编码时，payload 通常比 JSON 小 30–40%，适合移动端或高频消息场景。
 
 需要注意：
 
